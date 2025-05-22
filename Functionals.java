@@ -14,10 +14,19 @@ import java.util.stream.Collector;
  */
 public enum Functionals { ; // Namespace language construct via empty-enum
     // Functionals.applyArgs(Optional.of(10), Optional.of("hello")).toFunction((number, str) -> str + Integer.toString(number))
-    public static <T1,T2> OptionalFunction.IntermediateOptionalFunctionOf2<T1,T2> applyArgs(Optional<T1> t1, Optional<T2> t2) {
+    public static <T1,T2> OptionalFunction.IntermediateOptionalArgsOf2<T1,T2> applyArgs(Optional<T1> t1, Optional<T2> t2) {
         @SuppressWarnings({"rawtypes", "unchecked"}) // Go ask JLS why parametrized method cannot be treated as functional interface
-        OptionalFunction.IntermediateOptionalFunctionOf2<T1,T2> result = (OptionalFunction.IntermediateOptionalFunctionOf2) f -> t1.flatMap(v1 -> t2.map(v2 -> f.apply(v1, v2)));
+        OptionalFunction.IntermediateOptionalArgsOf2<T1,T2> result = (OptionalFunction.IntermediateOptionalArgsOf2) f -> t1.flatMap(v1 -> t2.map(v2 -> f.apply(v1, v2)));
         return result;
+    }
+
+    /**
+     * My first design of {@code applyArgs(T1, T2).toFunction(Function2<?,?>)}.
+     * IMO {@code lift(Function2<?,?>).args(T1, T2)} feels bit weird; but unlike the former, 
+     * this approach is loved by type inference & JLS rules doesn't blame that my code sucks
+     */
+    public static <T1,T2,R> FunctionNAry.Function2Ary<Optional<T1>,Optional<T2>,Optional<R>> lift(FunctionNAry.Function2Ary<T1,T2,R> f) {
+        return (t1, t2) -> t1.flatMap(v1 -> t2.map(v2 -> f.apply(v1, v2)));
     }
 
     // Very pointless and method-reference oriented. Functionals.pipe(Map.Entry::getKey, Model::data1);
@@ -58,7 +67,8 @@ public enum Functionals { ; // Namespace language construct via empty-enum
             private static final Object BOGUS_OBJECT = new Object();
             /**
              * Fused distinct List<?> fold collector with customizable key function.
-             * Replacing: {@code Stream.filter(StatefulDistinctFilter::filter).toList()}
+             * Replacing: {@code Stream.filter(StatefulDistinctFilter::filter).toList()}<p/>
+             * {@code Stream.collect(Functionals.Collect.ToList.distinctBy(Model::region))}
              */
             public static <T,Key> Collector<T,?,List<T>> distinctBy(Function<T,Key> keyFunction) {
                 return Collector.of(
@@ -99,6 +109,6 @@ public enum Functionals { ; // Namespace language construct via empty-enum
     /** ----- Internal ----- */
     // Private super namespace, but public namespace -> Let API user uses the available methods but prohibit external import (or FQN) & instantiation
     private enum OptionalFunction { ; 
-        public interface IntermediateOptionalFunctionOf2<T1,T2> { <R> R toFunction(FunctionNAry.Function2Ary<T1,T2,R> f); }
+        public interface IntermediateOptionalArgsOf2<T1,T2> { <R> Optional<R> toFunction(FunctionNAry.Function2Ary<T1,T2,R> f); }
     }
 }
