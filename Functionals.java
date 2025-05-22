@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collector;
 
@@ -34,28 +35,22 @@ public enum Functionals { ; // Namespace language construct via empty-enum
         public enum ToList { ;
             // Short-hand & fused version of Collectors.mapping(Function<?,?>, Collectors.toList())
             // collect(Functionals.Collect.ToList.mapFirst(Function<?,?>))
-            public <T,R> Collector<T,?,List<R>> mapFirst(Function<? super T,R> transformer) {
-                return Collector.of(
-                    ArrayList::new,
-                    (list, element) -> { list.add(transformer.apply(element)); },
-                    (left, right) -> { left.addAll(right); return left; },
-                    Collector.Characteristics.IDENTITY_FINISH
-                );
+            public static <T,R> Collector<T,?,List<R>> mapFirst(Function<? super T,R> transformer) {
+                return ToList.arrayListCollectorNoFinisher((list, element) -> { list.add(transformer.apply(element)); });
             }
 
-            public <T> Collector<T,?,List<T>> filterNull() {
-                return Collector.of(
-                    ArrayList::new,
-                    (list, element) -> { if (element != null) list.add(element); },
-                    (left, right) -> { left.addAll(right); return left; },
-                    Collector.Characteristics.IDENTITY_FINISH
-                );
+            public static <T> Collector<T,?,List<T>> filterNull() {
+                return ToList.arrayListCollectorNoFinisher((list, element) -> { if (element != null) list.add(element); });
             }
 
-            public <T> Collector<Optional<T>,?,List<T>> filterEmptyOptional() {
+            public static <T> Collector<Optional<T>,?,List<T>> filterEmptyOptional() {
+                return ToList.arrayListCollectorNoFinisher((list, element) -> element.ifPresent(list::add));
+            }
+
+            private static <T,R> Collector<T,?,List<R>> arrayListCollectorNoFinisher(BiConsumer<List<R>,T> consumer) {
                 return Collector.of(
                     ArrayList::new,
-                    (list, element) -> element.ifPresent(list::add),
+                    consumer,
                     (left, right) -> { left.addAll(right); return left; },
                     Collector.Characteristics.IDENTITY_FINISH
                 );
