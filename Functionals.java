@@ -32,6 +32,17 @@ public enum Functionals { ; // Namespace language construct via empty-enum
     // Collector utils
     public enum Collect { ;
         public enum ToList { ;
+            // Short-hand & fused version of Collectors.mapping(Function<?,?>, Collectors.toList())
+            // collect(Functionals.Collect.ToList.mapFirst(Function<?,?>))
+            public <T,R> Collector<T,?,List<R>> mapFirst(Function<? super T,R> transformer) {
+                return Collector.of(
+                    ArrayList::new,
+                    (list, element) -> { list.add(transformer.apply(element)); },
+                    (left, right) -> { left.addAll(right); return left; },
+                    Collector.Characteristics.IDENTITY_FINISH
+                );
+            }
+
             public <T> Collector<T,?,List<T>> filterNull() {
                 return Collector.of(
                     ArrayList::new,
