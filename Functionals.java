@@ -24,6 +24,11 @@ public enum Functionals { ; // Namespace language construct via empty-enum
         return f1.andThen(f2);
     }
 
+    /** See {@link #pipe(Function,Function)}. {@code Functionals.pipe(Model::dataList, Service::filter, Finisher::fold)} */
+    public static <T1,T2,T3,R> Function<T1,R> pipe(Function<T1,? extends T2> f1, Function<? super T2,? extends T3> f2, Function<? super T3,R> f3) {
+        return f1.andThen(f2).andThen(f3);
+    }
+
     // N-ary generalization of Function<?,?>
     public enum FunctionNAry { ;
         public interface Function2Ary<T1,T2,R> { R apply(T1 t1, T2 t2); }
