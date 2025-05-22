@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collector;
@@ -20,12 +21,14 @@ public enum Functionals { ; // Namespace language construct via empty-enum
     }
 
     // Very pointless and method-reference oriented. Functionals.pipe(Map.Entry::getKey, Model::data1);
-    public static <T1,T2,R> Function<T1,R> pipe(Function<T1,? extends T2> f1, Function<? super T2,R> f2) {
+    public static <T1,T2,Result> Function<T1,Result> pipe(Function<T1,? extends T2> f1, Function<? super T2,Result> f2) {
         return f1.andThen(f2);
     }
 
     /** See {@link #pipe(Function,Function)}. {@code Functionals.pipe(Model::dataList, Service::filter, Finisher::fold)} */
-    public static <T1,T2,T3,R> Function<T1,R> pipe(Function<T1,? extends T2> f1, Function<? super T2,? extends T3> f2, Function<? super T3,R> f3) {
+    public static <T1,T2,T3,Result> Function<T1,Result> pipe(
+        Function<T1,? extends T2> f1, Function<? super T2,? extends T3> f2, Function<? super T3,Result> f3
+    ) {
         return f1.andThen(f2).andThen(f3);
     }
 
@@ -52,7 +55,31 @@ public enum Functionals { ; // Namespace language construct via empty-enum
                 return ToList.arrayListCollectorNoFinisher((list, element) -> element.ifPresent(list::add));
             }
 
-            private static <T,R> Collector<T,?,List<R>> arrayListCollectorNoFinisher(BiConsumer<List<R>,T> consumer) {
+            private static final Object BOGUS_OBJECT = new Object();
+            /**
+             * Fused distinct List<?> fold collector with customizable key function.
+             * Replacing: {@code Stream.filter(StatefulDistinctFilter::filter).toList()}
+             */
+            public static <T,Key> Collector<T,?,List<T>> distinctBy(Function<T,Key> keyFunction) {
+                return Collector.of(
+                    () -> new Tuple.TupleOf2<>(new ArrayList<T>(), new ConcurrentHashMap<Key,Object>()),
+                    (pair, element) -> {
+                        final Key key = keyFunction.apply(element);
+                        if (!pair.v2.contains(key)) {
+                            pair.v2.put(key, BOGUS_OBJECT);
+                            pair.v1.add(element);
+                        }
+                    },
+                    (left, right) -> {
+                        left.v1.addAll(right.v1);
+                        left.v2.putAll(right.v2);
+                        return left;
+                    },
+                    Tuple.TupleOf2::v1
+                );
+            }
+
+            private static <T,Result> Collector<T,?,List<Result>> arrayListCollectorNoFinisher(BiConsumer<List<Result>,T> consumer) {
                 return Collector.of(
                     ArrayList::new,
                     consumer,
@@ -63,10 +90,15 @@ public enum Functionals { ; // Namespace language construct via empty-enum
         }
     }
 
+    public enum Tuple { ;
+        public record TupleOf2<T1,T2>(T1 v1, T2 v2) {}
+    }
+
 
 
     /** ----- Internal ----- */
-    private enum OptionalFunction { ;
+    // Private super namespace, but public namespace -> Let API user uses the available methods but prohibit external import (or FQN) & instantiation
+    private enum OptionalFunction { ; 
         public interface IntermediateOptionalFunctionOf2<T1,T2> { <R> R toFunction(FunctionNAry.Function2Ary<T1,T2,R> f); }
     }
 }
