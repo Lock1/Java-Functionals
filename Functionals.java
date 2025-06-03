@@ -29,6 +29,13 @@ public enum Functionals { ; // Namespace language construct via empty-enum
         return f1.andThen(f2).andThen(f3);
     }
 
+    public static FunctionalInterface.Internal.Castable<?> cast(Object obj) {
+        @SuppressWarnings({"rawtypes"})
+        FunctionalInterface.Internal.Castable<?> result = 
+                (FunctionalInterface.Internal.Castable) clazz -> clazz.isInstance(obj) ? Optional.of(clazz.cast(obj)) : Optional.empty();
+        return result;
+    }
+
     public enum Data { ;
         public static record Tuple2<T1,T2>(T1 v1, T2 v2) {}
         // Budget pre-record edition
@@ -48,6 +55,14 @@ public enum Functionals { ; // Namespace language construct via empty-enum
         // N-ary generalization of Function<?,?>
         public interface Function2<T1,T2,Result> { Result apply(T1 t1, T2 t2); }
         public interface Function3<T1,T2,T3,Result> { Result apply(T1 t1, T2 t2, T3 t3); }
+
+        private enum Internal { ;
+            /** 
+              * Turns out my {@link Optionals.Internal.IntermediateOptionalArgs2} abuses raw-types to work.
+              * I had to introduce phantom type for this to work with lambdas
+              */
+            public interface Castable<Phantom> { <TargetType> Optional<TargetType> to(Class<TargetType> clazz); }
+        }
     }
 
 
@@ -144,3 +159,36 @@ public enum Functionals { ; // Namespace language construct via empty-enum
     /** Do not mutate this object. */
     private static final Object BOGUS_OBJECT = new Object();
 }
+
+
+
+/**Experimental design: Currently on work
+public final class Try<T> {
+    public T consume(Consumer<? super Exception>); // Only way to consume Try<> & short-circuit
+
+    public static <T,E extends Exception> Try<T> fromContext(T fallback, FailableFunction<Try.Catch,? extends T> context);
+    public static <T,E extends Exception> Try<T> fromContext(T fallback, FailableSupplier<? extends T> context);
+    public static <T,E extends Exception> Try<Optional<T>> fromContext(FailableFunction<Try.Catch,? extends T> context);
+    public static <T,E extends Exception> Try<Optional<T>> fromContext(FailableSupplier<? extends T> context);
+
+    public final class Catch {
+        public boolean assertNotNull(Object, Supplier<Exception>);
+        private <T> Try<T> buildTry(T);
+    }
+
+    public enum Throw { ;
+        public static Supplier<?> uncheck(FailableSupplier<?>) throws RuntimeException;
+        public static Function<?,?> uncheck(FailableFunction<?,?>) throws RuntimeException;
+        public static <E extends Exception> void rethrow(E wrapper, Exception e) throws E;
+        public static <E extends Exception> void rethrow(E wrapper, FailableSupplier<?> e) throws E;
+    }
+}
+
+public Try<Optional<Dto>> toDto() {
+    return Try.fromContext(catcher -> {
+        catcher.assertNotNull(null, InconsistentException::new);
+        Try.Throw.rethrow(Exception::new, failableSupplier);
+        return null;
+    });
+}
+ */
