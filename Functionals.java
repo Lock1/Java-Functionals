@@ -52,13 +52,16 @@ public enum Functionals { ; // Namespace language construct via empty-enum
 
     // Functional interfaces
     public enum FunctionalInterface { ;
-        // N-ary generalization of Function<?,?>
-        public interface Function2<T1,T2,Result> { Result apply(T1 t1, T2 t2); }
-        public interface Function3<T1,T2,T3,Result> { Result apply(T1 t1, T2 t2, T3 t3); }
+        /** N-ary generalization of {@link java.util.function.Function} */
+        public interface FunctionOf2<T1,T2,Result> { Result apply(T1 t1, T2 t2); }
+        public interface FunctionOf3<T1,T2,T3,Result> { Result apply(T1 t1, T2 t2, T3 t3); }
+
+        /** N-ary generalization of {@link java.util.function.Consumer} */
+        public interface ConsumerOf2<T1,T2> { void accept(T1 t1, T2 t2); }
 
         private enum Internal { ;
             /** 
-              * Turns out my {@link Optionals.Internal.IntermediateOptionalArgs2} abuses raw-types to work.
+              * Turns out my {@link Optionals.Internal.IntermediateOptionalArgsOf2} abuses raw-types to work.
               * I had to introduce phantom type for this to work with lambdas
               */
             public interface Castable<Phantom> { <TargetType> Optional<TargetType> to(Class<TargetType> clazz); }
@@ -79,11 +82,11 @@ public enum Functionals { ; // Namespace language construct via empty-enum
     // Optional utilities
     public enum Optionals { ;
         // Functionals.applyArgs(Optional.of(10), Optional.of("hello")).toFunction((number, str) -> str + Integer.toString(number))
-        public static <T1,T2> Internal.IntermediateOptionalArgs2<T1,T2> applyArgs(Optional<T1> t1, Optional<T2> t2) {
+        public static <T1,T2> Internal.IntermediateOptionalArgsOf2<T1,T2> applyArgs(Optional<T1> t1, Optional<T2> t2) {
             // Go ask "JLS 15.27.3: Type of a Lambda Expression" designer why parametrized method cannot be treated as functional interface
             @SuppressWarnings({"rawtypes", "unchecked"})
-            Internal.IntermediateOptionalArgs2<T1,T2> result = 
-                (Internal.IntermediateOptionalArgs2) f -> t1.flatMap(v1 -> t2.map(v2 -> f.apply(v1, v2)));
+            Internal.IntermediateOptionalArgsOf2<T1,T2> result = 
+                (Internal.IntermediateOptionalArgsOf2) f -> t1.flatMap(v1 -> t2.map(v2 -> f.apply(v1, v2)));
             return result;
         }
 
@@ -92,14 +95,19 @@ public enum Functionals { ; // Namespace language construct via empty-enum
          * IMO {@code lift(Function2<?,?>).args(T1, T2)} feels bit weird; but unlike the former, 
          * this approach is loved by type inference & JLS rules doesn't blame that my code sucks
          */
-        public static <T1,T2,Result> FunctionalInterface.Function2<Optional<T1>,Optional<T2>,Optional<Result>> lift(FunctionalInterface.Function2<T1,T2,Result> f) {
+        public static <T1,T2,Result> FunctionalInterface.FunctionOf2<Optional<T1>,Optional<T2>,Optional<Result>> lift(FunctionalInterface.FunctionOf2<T1,T2,Result> f) {
             return (t1, t2) -> t1.flatMap(v1 -> t2.map(v2 -> f.apply(v1, v2)));
         }
 
         // Private super namespace, but public namespace -> Let API user uses the available methods but prohibit external import (or FQN) & instantiation
         private enum Internal { ; 
-            public interface IntermediateOptionalArgs2<T1,T2> {
-                <Result> Optional<Result> toFunction(FunctionalInterface.Function2<T1,T2,Result> f);
+            public interface IntermediateOptionalArgsOf2<T1,T2> { // Functional interface + some convenient mixins
+                <Result> Optional<Result> toFunction(FunctionalInterface.FunctionOf2<T1,T2,Result> f);
+                /** Unfortunately API "bleed" via private-public can't recognize this was being exposed publicly due to {@link Optionals#applyArgs(Optional, Optional)} */
+                @SuppressWarnings("unused")
+                default <Result> void toConsumer(FunctionalInterface.ConsumerOf2<T1,T2> f) {
+                    this.toFunction((t1, t2) -> { f.accept(t1, t2); return null; });
+                }
             }
         }
     }
