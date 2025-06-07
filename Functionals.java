@@ -42,17 +42,22 @@ public enum Functionals { ; // Namespace language construct via empty-enum
 
 
 /**
- * New variant of {@link Functionals#pipe(Function, Function)}, forward composition builder.<p/>
- * Example:<ul>
- *     <li>{@code Pipe.input(_ -> 42).output(x -> new Something())} produces {@code Function<Object,Something>}</li>
- *     <li>{@code Pipe.input(Model::dataList).connect(Service::filter).output(Finisher::fold)}
- *         produces {@code Function<Model,Folded>}
- *     </li>
- *     <li><code>Pipe.input(Model::getAttr).connect(attr -> { attr.mutate(); return attr; }).sink(Model::setAttr)</code>
- *         produces {@code Consumer&lt;Model&gt;}
- *     </li>
- * </ul>
- */
+  * New variant of {@link Functionals#pipe(Function, Function)}, forward composition builder.<p/>
+  * Example:<ul>
+  *     <li>{@code Pipe.input(_ -> 42).output(Something::new)}
+  *         <ul><li>Produces {@code Function<Object,Something>}</li></ul>
+  *     </li>
+  *     <li>{@code Pipe.input(Model::dataList).connect(Service::filter).output(Finisher::fold)}
+  *         <ul><li>Produces {@code Function<Model,Folded>}</li></ul>
+  *     </li>
+  *     <li>{@code Pipe.input(Model::getAttrKey).tee(Objects::isNull)}
+  *         <ul><li>Produces {@code Predicate<Model>}</li></ul>
+  *     </li>
+  *     <li><code>Pipe.input(Model::getAttr).connect(a -> { a.mutate(); return a; }).sink(Model::setAttr)</code>
+  *         <ul><li>Produces {@code Consumer&lt;Model&gt;}</li></ul>
+  *     </li>
+  * </ul>
+  */
 final class Pipe<T,Result> {
     private final Function<? super T,? extends Result> source;
     private Pipe(Function<? super T,? extends Result> f) {
@@ -69,12 +74,20 @@ final class Pipe<T,Result> {
         return (Function<T,TerminalResult>) this.source.andThen(f);
     }
 
+    /** Terminal operation turning pipeline to partitioning function {@code Predicate<T>}. Especially handy for {@link Stream#filter(Predicate)}. */
+    public Predicate<T> tee(Predicate<? super Result> predicate) {
+        return x -> predicate.test(source.apply(x));
+    }
+
     /** Terminal operation turning pipeline into a sink (implies side-effect). */
     public Consumer<T> sink(Consumer<? super Result> consumer) {
         return x -> consumer.accept(this.source.apply(x));
     }
 
-    /** Create pipeline with provided function as initial pipe. */
+    /**
+      * Create pipeline with provided function as initial pipe.<p/>
+      * As Java type system inferrence is pretty weak, explicit type annotation might be required.
+      */
     public static <T,Result> Pipe<T,Result> input(Function<? super T,? extends Result> f) {
         return new Pipe<>(f);
     }
@@ -156,7 +169,7 @@ enum Optionals { ;
 enum Functors { ;
     // Predicate utilities primarily designed for filter()
     public enum Filter { ;
-        public static <T,Key> Predicate<T> keyEquals(Function<? super T,Key> keyFunction, Key value) {
+        public static <T,Key> Predicate<T> keyEquals(Function<? super T,? extends Key> keyFunction, Key value) {
             return v -> Objects.equals(value, keyFunction.apply(v));
         }
     }
