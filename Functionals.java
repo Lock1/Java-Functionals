@@ -44,17 +44,20 @@ public enum Functionals { ; // Namespace language construct via empty-enum
 /**
   * New variant of {@link Functionals#pipe(Function, Function)}, forward composition builder.<p/>
   * Example:<ul>
-  *     <li>{@code Pipe.input(_ -> 42).output(Something::new)}
-  *         <ul><li>Produces {@code Function<Object,Something>}</li></ul>
-  *     </li>
   *     <li>{@code Pipe.input(Model::dataList).connect(Service::filter).output(Finisher::fold)}
-  *         <ul><li>Produces {@code Function<Model,Folded>}</li></ul>
+  *         <ul><li>Produces {@code Function<Model,Folded>} (standard forward composition)</li></ul>
+  *     </li>
+  *     <li>{@code Pipe.input(_ -> 42).output(Something::new)}
+  *         <ul><li>Produces {@code Function<Object,Something>} (constant function composition)</li></ul>
   *     </li>
   *     <li>{@code Pipe.input(Model::getAttrKey).tee(Objects::isNull)}
-  *         <ul><li>Produces {@code Predicate<Model>}</li></ul>
+  *         <ul><li>Produces {@code Predicate<Model>} (key prober pipeline for {@code filter()})</li></ul>
   *     </li>
   *     <li><code>Pipe.input(Model::getAttr).connect(a -> { a.mutate(); return a; }).sink(Model::setAttr)</code>
-  *         <ul><li>Produces {@code Consumer&lt;Model&gt;}</li></ul>
+  *         <ul><li>Produces {@code Consumer<Model>} (pipeline that ends with side-effect)</li></ul>
+  *     </li>
+  *     <li>{@code Pipe.source(Config::getX).connect(Transform::process).sink(ServiceConfigurator::setConfig)}
+  *         <ul><li>Produces {@code Consumer<Void>} (fully side-effect "procedure")</li></ul>
   *     </li>
   * </ul>
   */
