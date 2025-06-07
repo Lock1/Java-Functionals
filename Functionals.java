@@ -48,7 +48,7 @@ public enum Functionals { ; // Namespace language construct via empty-enum
  *     <li>{@code Pipe.input(Model::dataList).connect(Service::filter).output(Finisher::fold)}
  *         produces {@code Function<Model,Folded>}
  *     </li>
- *     <li><code>Pipe.input(Model::getAttr).connect(attr -> { attr.mutate(); return attr; }).consumed(Model::setAttr)</code>
+ *     <li><code>Pipe.input(Model::getAttr).connect(attr -> { attr.mutate(); return attr; }).sink(Model::setAttr)</code>
  *         produces {@code Consumer&lt;Model&gt;}
  *     </li>
  * </ul>
@@ -70,7 +70,7 @@ final class Pipe<T,Result> {
     }
 
     /** Terminal operation turning pipeline into a sink (implies side-effect). */
-    public Consumer<T> consumed(Consumer<? super Result> consumer) {
+    public Consumer<T> sink(Consumer<? super Result> consumer) {
         return x -> consumer.accept(this.source.apply(x));
     }
 
