@@ -80,8 +80,8 @@ final class Pipe<T,Result> {
     }
 
     /** Terminal operation turning pipeline into a sink (implies side-effect). */
-    public Consumer<T> sink(Consumer<? super Result> consumer) {
-        return x -> consumer.accept(this.source.apply(x));
+    public Consumer<T> sink(Consumer<? super Result> sink) {
+        return x -> sink.accept(this.source.apply(x));
     }
 
     /**
@@ -90,6 +90,11 @@ final class Pipe<T,Result> {
       */
     public static <T,Result> Pipe<T,Result> input(Function<? super T,? extends Result> f) {
         return new Pipe<>(f);
+    }
+
+    /** {@link Supplier} factory variant of {@link #input(Function)}. Treat {@code Void} as unit type and use {@code null} for args. */
+    public static <Result> Pipe<Void,Result> source(Supplier<? extends Result> source) {
+        return new Pipe<>(_ -> source.get());
     }
 }
 
