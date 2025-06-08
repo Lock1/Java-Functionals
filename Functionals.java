@@ -43,20 +43,21 @@ public enum Functionals { ; // Namespace language construct via empty-enum
 
 /**
   * New variant of {@link Functionals#pipe(Function, Function)}, forward composition builder.<p/>
+  * Plumbing mini-game.<p/>
   * Example:<ul>
-  *     <li>{@code Pipe.input(Model::dataList).connect(Service::filter).output(Finisher::fold)}
+  *     <li>{@code Pipe.inlet(Model::dataList).join(Service::filter).outlet(Finisher::fold)}
   *         <ul><li>Produces {@code Function<Model,Folded>} (standard forward composition)</li></ul>
   *     </li>
-  *     <li>{@code Pipe.input(_ -> 42).output(Something::new)}
+  *     <li>{@code Pipe.inlet(_ -> 42).outlet(Something::new)}
   *         <ul><li>Produces {@code Function<Object,Something>} (constant function composition)</li></ul>
   *     </li>
-  *     <li>{@code Pipe.input(Model::getAttrKey).tee(Objects::isNull)}
+  *     <li>{@code Pipe.inlet(Model::getAttrKey).tee(Objects::isNull)}
   *         <ul><li>Produces {@code Predicate<Model>} (key prober pipeline for {@code filter()})</li></ul>
   *     </li>
-  *     <li><code>Pipe.input(Model::getAttr).connect(a -> { a.mutate(); return a; }).sink(Model::setAttr)</code>
+  *     <li><code>Pipe.inlet(Model::getAttr).join(a -> { a.mutate(); return a; }).sink(Model::setAttr)</code>
   *         <ul><li>Produces {@code Consumer<Model>} (pipeline that ends with side-effect)</li></ul>
   *     </li>
-  *     <li>{@code Pipe.source(Config::getX).connect(Transform::process).sink(ServiceConfigurator::setConfig)}
+  *     <li>{@code Pipe.source(Config::getX).join(Transform::process).sink(ServiceConfigurator::setConfig)}
   *         <ul><li>Produces {@code Consumer<Void>} (fully side-effect "procedure")</li></ul>
   *     </li>
   * </ul>
@@ -68,18 +69,18 @@ final class Pipe<T,Result> {
     }
 
     /** Intermediate operation producing new pipeline extended with provided function. */
-    public <NewResult> Pipe<T,NewResult> connect(Function<? super Result,? extends NewResult> f) {
-        return new Pipe<>(this.source.andThen(f));
+    public <NewResult> Pipe<T,NewResult> join(Function<? super Result,? extends NewResult> segment) {
+        return new Pipe<>(this.source.andThen(segment));
     }
 
     /** Terminal operation finalize pipeline into fully built {@code Function<T,TerminalResult>}. */
-    public <TerminalResult> Function<T,TerminalResult> output(Function<? super Result,? extends TerminalResult> f) {
-        return (Function<T,TerminalResult>) this.source.andThen(f);
+    public <TerminalResult> Function<T,TerminalResult> outlet(Function<? super Result,? extends TerminalResult> end) {
+        return (Function<T,TerminalResult>) this.source.andThen(end);
     }
 
     /**
       * Terminal operation turning pipeline to partitioning function {@code Predicate<T>}. 
-      * Especially handy for {@link Stream#filter(Predicate)}---or just {@code output(Predicate)::apply} to coerce
+      * Especially handy for {@link Stream#filter(Predicate)}---or just {@code outlet(Predicate)::apply} to coerce
       */
     public Predicate<T> tee(Predicate<? super Result> predicate) {
         return x -> predicate.test(source.apply(x));
@@ -91,15 +92,15 @@ final class Pipe<T,Result> {
     }
 
     /**
-      * Create pipeline with provided function as initial pipe.<p/>
+      * Create pipeline with provided function as initial pipe inlet.<p/>
       * As Java type system inferrence is pretty weak, explicit type annotation might be required.
       */
-    public static <T,Result> Pipe<T,Result> input(Function<? super T,? extends Result> f) {
-        return new Pipe<>(f);
+    public static <T,Result> Pipe<T,Result> inlet(Function<? super T,? extends Result> base) {
+        return new Pipe<>(base);
     }
 
     /**
-      * {@link Supplier} factory variant of {@link #input(Function)} (side-effect data source or constant supplier).<p/>
+      * {@link Supplier} factory variant of {@link #inlet(Function)} (side-effect data source or constant supplier).<p/>
       * Treat {@code Void} as unit type and use {@code null} for args.
       */
     public static <Result> Pipe<Void,Result> source(Supplier<? extends Result> source) {
