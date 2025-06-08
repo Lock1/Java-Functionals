@@ -203,6 +203,24 @@ enum Streams { ;
     }
 
     public enum Collect { ;
+        // General fold / reduce collector
+        public enum Fold { ;
+            /**
+              * Direct all stream element into {@link Consumer} sink without materializing any container.<p/>
+              * By default support all {@link Collector.Characteristics}, but depend on provided {@link Consumer}.<p/>
+              */
+            public static <T> Collector<T,?,Void> sink(Consumer<? super T> consumer) {
+                return Collector.of(
+                    () -> null,
+                    (_, element) -> consumer.accept(element),
+                    (_, _) -> null,
+                    Collector.Characteristics.CONCURRENT,
+                    Collector.Characteristics.IDENTITY_FINISH,
+                    Collector.Characteristics.UNORDERED
+                );
+            }
+        }
+
         public enum ToList { ;
             // Short-hand & fused version of Collectors.mapping(Function<?,?>, Collectors.toList())
             // collect(Functionals.Collect.ToList.mapFirst(Function<?,?>))
