@@ -49,10 +49,10 @@ public enum Functionals { ; // Namespace language construct via empty-enum
   *         <ul><li>Produces {@code Function<Model,Folded>} (standard forward composition)</li></ul>
   *     </li>
   *     <li>{@code Pipe.inlet(_ -> 42).outlet(Something::new)}
-  *         <ul><li>Produces {@code Function<Object,Something>} (constant function composition)</li></ul>
+  *         <ul><li>Produces {@code Function<Object,Something>} (constant function)</li></ul>
   *     </li>
   *     <li>{@code Pipe.inlet(Model::getAttrKey).tee(Objects::isNull)}
-  *         <ul><li>Produces {@code Predicate<Model>} (key prober pipeline for {@code filter()})</li></ul>
+  *         <ul><li>Produces {@code Predicate<Model>} (key prober for {@code filter()})</li></ul>
   *     </li>
   *     <li><code>Pipe.inlet(Model::getAttr).join(a -> { a.mutate(); return a; }).sink(Model::setAttr)</code>
   *         <ul><li>Produces {@code Consumer<Model>} (pipeline that ends with side-effect)</li></ul>
