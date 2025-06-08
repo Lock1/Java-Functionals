@@ -77,7 +77,10 @@ final class Pipe<T,Result> {
         return (Function<T,TerminalResult>) this.source.andThen(f);
     }
 
-    /** Terminal operation turning pipeline to partitioning function {@code Predicate<T>}. Especially handy for {@link Stream#filter(Predicate)}. */
+    /**
+      * Terminal operation turning pipeline to partitioning function {@code Predicate<T>}. 
+      * Especially handy for {@link Stream#filter(Predicate)}---or just {@code output(Predicate)::apply} to coerce
+      */
     public Predicate<T> tee(Predicate<? super Result> predicate) {
         return x -> predicate.test(source.apply(x));
     }
@@ -95,7 +98,10 @@ final class Pipe<T,Result> {
         return new Pipe<>(f);
     }
 
-    /** {@link Supplier} factory variant of {@link #input(Function)}. Treat {@code Void} as unit type and use {@code null} for args. */
+    /**
+      * {@link Supplier} factory variant of {@link #input(Function)} (side-effect data source or constant supplier).<p/>
+      * Treat {@code Void} as unit type and use {@code null} for args.
+      */
     public static <Result> Pipe<Void,Result> source(Supplier<? extends Result> source) {
         return new Pipe<>(_ -> source.get());
     }
