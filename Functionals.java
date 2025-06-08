@@ -42,8 +42,8 @@ public enum Functionals { ; // Namespace language construct via empty-enum
 
 
 /**
-  * New variant of {@link Functionals#pipe(Function, Function)}, forward composition builder.<p/>
-  * Plumbing mini-game.<p/>
+  * Plumbing mini-game: Java edition.<p/>
+  * Redesigned {@link Functionals#pipe(Function, Function)}, a forward composition builder.<p/>
   * Example:<ul>
   *     <li>{@code Pipe.inlet(Model::dataList).join(Service::filter).outlet(Finisher::fold)}
   *         <ul><li>Produces {@code Function<Model,Folded>} (standard forward composition)</li></ul>
@@ -63,19 +63,19 @@ public enum Functionals { ; // Namespace language construct via empty-enum
   * </ul>
   */
 final class Pipe<T,Result> {
-    private final Function<? super T,? extends Result> source;
+    private final Function<? super T,? extends Result> section;
     private Pipe(Function<? super T,? extends Result> f) {
-        this.source = f;
+        this.section = f;
     }
 
     /** Intermediate operation producing new pipeline extended with provided function. */
     public <NewResult> Pipe<T,NewResult> join(Function<? super Result,? extends NewResult> segment) {
-        return new Pipe<>(this.source.andThen(segment));
+        return new Pipe<>(this.section.andThen(segment));
     }
 
     /** Terminal operation finalize pipeline into fully built {@code Function<T,TerminalResult>}. */
     public <TerminalResult> Function<T,TerminalResult> outlet(Function<? super Result,? extends TerminalResult> end) {
-        return (Function<T,TerminalResult>) this.source.andThen(end);
+        return (Function<T,TerminalResult>) this.section.andThen(end);
     }
 
     /**
@@ -83,12 +83,12 @@ final class Pipe<T,Result> {
       * Especially handy for {@link Stream#filter(Predicate)}---or just {@code outlet(Predicate)::apply} to coerce
       */
     public Predicate<T> tee(Predicate<? super Result> predicate) {
-        return x -> predicate.test(source.apply(x));
+        return x -> predicate.test(this.section.apply(x));
     }
 
     /** Terminal operation turning pipeline into a sink (implies side-effect). */
     public Consumer<T> sink(Consumer<? super Result> sink) {
-        return x -> sink.accept(this.source.apply(x));
+        return x -> sink.accept(this.section.apply(x));
     }
 
     /**
