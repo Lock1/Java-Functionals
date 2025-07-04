@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,6 +29,33 @@ public enum Functionals { ; // Namespace language construct via empty-enum
         return (Internal.Castable) clazz -> clazz.isInstance(obj) ? Optional.of(clazz.cast(obj)) : Optional.empty();
     }
 
+    public static <T1,T2,R> Function<? super T2,? extends R> argsAt1(FunctionalInterfaces.FunctionOf2<? super T1,? super T2,? extends R> f, T1 arg) {
+        return f.argsAt1(arg);
+    }
+
+    // This has special interaction: 15.13.1. Compile-Time Declaration of a Method Reference
+    // Two different arities, n and n-1, are considered, to account for the possibility that this form refers to either a static method or an instance method.
+    public static <T1,T2,R> Function<? super T1,? extends R> argsAt2(FunctionalInterfaces.FunctionOf2<? super T1,? super T2,? extends R> f, T2 arg) {
+        return f.argsAt2(arg);
+    }
+
+    public static <T1,T2,T3,R> FunctionalInterfaces.FunctionOf2<? super T2,? super T3,? extends R> argsAt1(FunctionalInterfaces.FunctionOf3<? super T1,? super T2,? super T3,? extends R> f, T1 arg) {
+        return f.argsAt1(arg);
+    }
+
+    public static <T1,T2,T3,R> FunctionalInterfaces.FunctionOf2<? super T1,? super T3,? extends R> argsAt2(FunctionalInterfaces.FunctionOf3<? super T1,? super T2,? super T3,? extends R> f, T2 arg) {
+        return f.argsAt2(arg);
+    }
+
+    public static <T1,T2,T3,R> FunctionalInterfaces.FunctionOf2<? super T1,? super T2,? extends R> argsAt3(FunctionalInterfaces.FunctionOf3<? super T1,? super T2,? super T3,? extends R> f, T3 arg) {
+        return f.argsAt3(arg);
+    }
+
+    public static void main(String[] args) {
+        Optional.of(Optional.of(10))
+            .map(Functionals.argsAt2(Optional::orElse, 3));
+    }
+
     private enum Internal { ;
         /** 
           * Turns out my {@link Optionals.Internal.IntermediateOptionalArgsOf2} abuses raw-types to work.
@@ -42,10 +70,12 @@ public enum Functionals { ; // Namespace language construct via empty-enum
 
 
 /**
+  * Future edit: Well, I guess Java type system are too weak to utilize this properly.<p/>
+  *
   * Plumbing mini-game: Java edition.<p/>
   * Redesigned {@link Functionals#pipe(Function, Function)}, a forward composition builder.<p/>
   * Example:<ul>
-  *     <li>{@code Pipe.inlet(Model::dataList).join(Service::filter).outlet(Finisher::fold)}
+  *     <li>{@code Pipe.inlet(Model::dataList).join(Service::transform).outlet(Finisher::fold)}
   *         <ul><li>Produces {@code Function<Model,Folded>} (standard forward composition)</li></ul>
   *     </li>
   *     <li>{@code Pipe.inlet(_ -> 42).outlet(Something::new)}
@@ -115,8 +145,17 @@ final class Pipe<T,Result> {
 // Functional interfaces
 enum FunctionalInterfaces { ;
     /** N-ary generalization of {@link java.util.function.Function} */
-    public interface FunctionOf2<T1,T2,Result> { Result apply(T1 t1, T2 t2); }
-    public interface FunctionOf3<T1,T2,T3,Result> { Result apply(T1 t1, T2 t2, T3 t3); }
+    public interface FunctionOf2<T1,T2,Result> {
+        Result apply(T1 t1, T2 t2);
+        default Function<T2,Result> argsAt1(T1 arg) { return t2 -> this.apply(arg, t2); }
+        default Function<T1,Result> argsAt2(T2 arg) { return t1 -> this.apply(t1, arg); }
+    }
+    public interface FunctionOf3<T1,T2,T3,Result> {
+        Result apply(T1 t1, T2 t2, T3 t3);
+        default FunctionOf2<T2,T3,Result> argsAt1(T1 arg) { return (t2, t3) -> this.apply(arg, t2, t3); }
+        default FunctionOf2<T1,T3,Result> argsAt2(T2 arg) { return (t1, t3) -> this.apply(t1, arg, t3); }
+        default FunctionOf2<T1,T2,Result> argsAt3(T3 arg) { return (t1, t2) -> this.apply(t1, t2, arg); }
+    }
 
     /** N-ary generalization of {@link java.util.function.Consumer} */
     public interface ConsumerOf2<T1,T2> { void accept(T1 t1, T2 t2); }
@@ -138,6 +177,40 @@ enum Data { ;
             this.v2 = v2;
         }
     }
+
+    public interface ContainerMonad<T> {}
+
+    /** Sum-type value constructors: {@code data Nullable<T> = Has(T) | Empty} */
+    public static sealed interface Nullable<T> extends Iterable<T>, ContainerMonad<T> {
+        public record Has<T>(T e) implements Nullable<T> {};
+        public final class Empty<T> implements Nullable<T> {
+            private static final Empty<?> EMPTY = new Empty<>();
+            private Empty() {}
+        };
+
+        // ----- Public API -----
+        public default <R> Nullable<R> flatMap(Function<? super T,? extends Nullable<? extends R>> f) {
+            return switch (this) {
+                case Has(T e) -> (Nullable<R>) f.apply(e);
+                case Empty<T> _ -> Nullable.empty();
+            };
+        }
+
+        @Override public default Iterator<T> iterator() {
+            return switch (this) {
+                case Has(T e) -> List.of(e).iterator();
+                case Empty<T> _ -> List.<T>of().iterator();
+            };
+        }
+
+        public static <T> Nullable<T> of(T value) {
+            return value == null ? Nullable.empty() : new Has<>(value);
+        }
+
+        public static <T> Nullable<T> empty() {
+            return (Nullable<T>) Empty.EMPTY;
+        }
+    }
 }
 
 
@@ -146,6 +219,8 @@ enum Data { ;
 
 // Optional utilities
 enum Optionals { ;
+    // Meh, go with sealed Nullable
+
     // Functionals.applyArgs(Optional.of(10), Optional.of("hello")).toFunction((number, str) -> str + Integer.toString(number))
     public static <T1,T2> Internal.IntermediateOptionalArgsOf2<T1,T2> applyArgs(Optional<T1> t1, Optional<T2> t2) {
         // Go ask "JLS 15.27.3: Type of a Lambda Expression" designer why parametrized method cannot be treated as functional interface
