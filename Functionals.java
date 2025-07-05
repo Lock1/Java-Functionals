@@ -217,6 +217,8 @@ enum Data { ;
     // FlatMapping<?>
     // bind
 
+    // public static ApplicativeFunction<T1,T2,T3,...>
+
     // Unlike my original test run design, intentionally unbounded type constraint for E
     public static sealed interface Faulty<T,E> extends Iterable<T>, ContainerMonad<T> {
         public record Error<T,E>(E e) implements Faulty<T,E> {};
@@ -253,11 +255,32 @@ enum Data { ;
             };
         }
 
-        public default <R> Nullable<R> flatMap(Function<? super T,? extends Nullable<? extends R>> f) {
+        // My proposal: We slap descriptive name instead of generalized form for monadic context
+        // It does cost you some more lengthy name, but whatever, already Stockholm syndrome'd with Java verbosity
+
+        // Mirroring Promise.then(), Nullable.ifPresent() seems way more inline with Nullable's associated monad context
+        // Promise.then(): "This computation might already happen or happen in the (unbounded) future, in case it's done, continue do this"
+        // Nullable.ifPresent(): "This value might or might not exist, if exist go ahead compute this"
+        public default <R> Nullable<R> ifPresentFlatten(Function<? super T,? extends Nullable<? extends R>> mapper) {
             return switch (this) {
-                case Has(T e) -> (Nullable<R>) f.apply(e);
+                case Has(T e) -> (Nullable<R>) mapper.apply(e);
                 case Empty<T> _ -> Nullable.empty();
             };
+        }
+
+        // This is just functor variant of ifPresentFlatten()
+        public default <R> Nullable<R> ifPresent(Function<? super T,? extends R> mapper) {
+            return switch (this) {
+                case Has(T e) -> (Nullable<R>) mapper.apply(e);
+                case Empty<T> _ -> Nullable.empty();
+            };
+        }
+
+        // Now, to replace Optional#ifPresent(), I propose more natural "query" Nullable.peek() for side-effect & still allow composition
+        public default Nullable<T> peek(Consumer<? super T> consumer) {
+            if (this instanceof Has(T value))
+                consumer.accept(value);
+            return this;
         }
 
         @Override public default Iterator<T> iterator() {
