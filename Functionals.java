@@ -178,6 +178,7 @@ enum Data { ;
         }
     }
 
+    // Not exactly Monad<T> in complete sense, but good enough in this barren type system land
     public interface ContainerMonad<T> {
         public ToNativeType<T> to();
 
@@ -237,6 +238,47 @@ enum Data { ;
                 case Ok(T t) -> List.of(t).iterator();
             };
         }
+
+        // Opted to double monad: Monad<T> + Monad<E>
+        public default <T2> Faulty<T2,E> ifOk(Function<? super T,? extends T2> mapper) {
+            return switch (this) {
+                case Error<T,E> e -> (Error<T2,E>) e; // T in Error type parameter are just a phantom type, everything is equivalent to Error<?,E>
+                case Ok(T t) -> new Ok<>(mapper.apply(t));
+            };
+        }
+
+        public default <T2> Faulty<T2,E> ifOkFlatten(Function<? super T,? extends Faulty<? extends T2,E>> mapper) {
+            return switch (this) {
+                case Error<T,E> e -> (Error<T2,E>) e;
+                case Ok(T t) -> (Faulty<T2,E>) mapper.apply(t); // Faulty<T2,E> <- (? extends Faulty<? extends T2,E>) 
+            };
+        }
+
+        public default Faulty<T,E> ifOkPeek(Consumer<? super T> inspector) {
+            if (this instanceof Ok(T t))
+                inspector.accept(t);
+            return this;
+        }
+
+        public default <E2> Faulty<T,E2> ifError(Function<? super E,? extends E2> mapper) {
+            return switch (this) {
+                case Error(E e) -> new Error<>(mapper.apply(e));
+                case Ok<T,E> o -> (Faulty<T,E2>) o; // Phantom type again
+            };
+        }
+
+        public default <E2> Faulty<T,E2> ifErrorFlatten(Function<? super E,? extends Faulty<T,? extends E2>> mapper) {
+            return switch (this) {
+                case Error(E e) -> (Faulty<T,E2>) mapper.apply(e); // Faulty<T,E2> <- (? extends Faulty<T,? extends E2>) 
+                case Ok<T,E> o -> (Faulty<T,E2>) o;
+            };
+        }
+
+        public default Faulty<T,E> ifErrorPeek(Consumer<? super E> inspector) {
+            if (this instanceof Error(E e))
+                inspector.accept(e);
+            return this;
+        }
     }
 
     /** Sum-type value constructors: {@code data Nullable<T> = Has(T) | Empty} */
@@ -261,7 +303,7 @@ enum Data { ;
         // Mirroring Promise.then(), Nullable.ifPresent() seems way more inline with Nullable's associated monad context
         // Promise.then(): "This computation might already happen or happen in the (unbounded) future, in case it's done, continue do this"
         // Nullable.ifPresent(): "This value might or might not exist, if exist go ahead compute this"
-        public default <R> Nullable<R> ifPresentFlatten(Function<? super T,? extends Nullable<? extends R>> mapper) {
+        public default <R> Nullable<R> ifHasValueFlatten(Function<? super T,? extends Nullable<? extends R>> mapper) {
             return switch (this) {
                 case Has(T e) -> (Nullable<R>) mapper.apply(e);
                 case Empty<T> _ -> Nullable.empty();
@@ -269,7 +311,7 @@ enum Data { ;
         }
 
         // This is just functor variant of ifPresentFlatten()
-        public default <R> Nullable<R> ifPresent(Function<? super T,? extends R> mapper) {
+        public default <R> Nullable<R> ifHasValue(Function<? super T,? extends R> mapper) {
             return switch (this) {
                 case Has(T e) -> (Nullable<R>) mapper.apply(e);
                 case Empty<T> _ -> Nullable.empty();
@@ -277,9 +319,12 @@ enum Data { ;
         }
 
         // Now, to replace Optional#ifPresent(), I propose more natural "query" Nullable.peek() for side-effect & still allow composition
-        public default Nullable<T> peek(Consumer<? super T> consumer) {
+        // If only Java type system allow precise ThisType parametrized type constraint, actually it's kind of make sense for ContainerMonad<T> implementation to provide peek()
+        // public peek(Consumer<? super T>) -> ThisMonad<T>
+        // Even Stream has this method
+        public default Nullable<T> ifHasValuePeek(Consumer<? super T> inspector) {
             if (this instanceof Has(T value))
-                consumer.accept(value);
+                inspector.accept(value);
             return this;
         }
 
@@ -290,6 +335,8 @@ enum Data { ;
             };
         }
 
+        // Hmm, actually I didn't know that record's canonical constructor has a restriction on visibility modifier
+        // But in this case, this static factory constructor is still useful
         public static <T> Nullable<T> of(T value) {
             return value == null ? Nullable.empty() : new Has<>(value);
         }
