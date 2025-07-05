@@ -178,7 +178,64 @@ enum Data { ;
         }
     }
 
-    public interface ContainerMonad<T> {}
+    public interface ContainerMonad<T> {
+        public ToNativeType<T> to();
+
+        // Experimental hierarchical API
+        @FunctionalInterface
+        public interface ToNativeType<T> {
+            public Optional<T> optional();
+            public default Stream<T> stream() {
+                return this.optional().stream();
+            }
+        }
+
+        private static void fun() {
+            final ContainerMonad<?> _ = () -> () -> Optional.empty();
+        }
+    }
+
+    // public interface ParameterizedMonad<T> {}
+    // public interface Monad<T> {
+    //     public <R,Injected extends Monad<? extends R>> Injected flatMap(Function<? super T,? extends Injected> computation);
+    // }
+
+    /** // Terrible ideas: `do` notation
+     * public static final class MonadicContext {
+     *    T do();
+     *    Im1 bind();
+     *    Im2 compute();
+     * ugh, i had to enumerate the state spaces
+     * }
+     */
+    // refer to object?
+    // @OptionalRequestParam(value=RequestParam.value, defaultValue=Nullable.empty()) Nullable
+    // @ModelAttribute Nullable<T>
+    // 
+
+    // Outflow<T>
+    // FlatMapping<?>
+    // bind
+
+    // Unlike my original test run design, intentionally unbounded type constraint for E
+    public static sealed interface Faulty<T,E> extends Iterable<T>, ContainerMonad<T> {
+        public record Error<T,E>(E e) implements Faulty<T,E> {};
+        public record Ok<T,E>(T v) implements Faulty<T,E> {};
+
+        @Override public default ToNativeType<T> to() {
+            return () -> switch (this) {
+                case Error(E _) -> Optional.empty();
+                case Ok(T t) -> Optional.of(t);
+            };
+        }
+
+        @Override public default Iterator<T> iterator() {
+            return switch (this) {
+                case Error(E _) -> List.<T>of().iterator();
+                case Ok(T t) -> List.of(t).iterator();
+            };
+        }
+    }
 
     /** Sum-type value constructors: {@code data Nullable<T> = Has(T) | Empty} */
     public static sealed interface Nullable<T> extends Iterable<T>, ContainerMonad<T> {
@@ -189,6 +246,13 @@ enum Data { ;
         };
 
         // ----- Public API -----
+        @Override public default ToNativeType<T> to() {
+            return () -> switch (this) {
+                case Has(T e) -> Optional.of(e);
+                case Empty<T> _ -> Optional.empty();
+            };
+        }
+
         public default <R> Nullable<R> flatMap(Function<? super T,? extends Nullable<? extends R>> f) {
             return switch (this) {
                 case Has(T e) -> (Nullable<R>) f.apply(e);
