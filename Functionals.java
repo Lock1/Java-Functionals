@@ -166,6 +166,8 @@ enum FunctionalInterfaces { ;
 
 
 enum Data { ;
+    public static class PanicError extends Error { @Override public String getMessage() { return "Something unthinkable happen"; } }
+
     public static record Tuple2<T1,T2>(T1 v1, T2 v2) {}
     // Budget pre-record JDK 17 edition
     public static final class TupleOf2<T1,T2> {
@@ -178,8 +180,8 @@ enum Data { ;
         }
     }
 
-    // Not exactly Monad<T> in complete sense, but good enough in this barren type system land
-    public interface ContainerMonad<T> {
+    // Not exactly complete Monad<T>, but good enough in this barren type system land
+    public interface ContainerMonad<T> extends Iterable<T> {
         public ToNativeType<T> to();
 
         // Experimental hierarchical API
@@ -189,10 +191,6 @@ enum Data { ;
             public default Stream<T> stream() {
                 return this.optional().stream();
             }
-        }
-
-        private static void fun() {
-            final ContainerMonad<?> _ = () -> () -> Optional.empty();
         }
     }
 
@@ -212,7 +210,9 @@ enum Data { ;
     // refer to object?
     // @OptionalRequestParam(value=RequestParam.value, defaultValue=Nullable.empty()) Nullable
     // @ModelAttribute Nullable<T>
-    // 
+    // @RequestParam Optional<Nullable<T>>
+    // after all, all JavaType are nullable
+    // it is a noise, but go ask Java why it does that
 
     // Outflow<T>
     // FlatMapping<?>
@@ -221,7 +221,7 @@ enum Data { ;
     // public static ApplicativeFunction<T1,T2,T3,...>
 
     // Unlike my original test run design, intentionally unbounded type constraint for E
-    public static sealed interface Faulty<T,E> extends Iterable<T>, ContainerMonad<T> {
+    public static sealed interface Faulty<T,E> extends ContainerMonad<T> {
         public record Error<T,E>(E e) implements Faulty<T,E> {};
         public record Ok<T,E>(T v) implements Faulty<T,E> {};
 
@@ -250,7 +250,7 @@ enum Data { ;
         public default <T2> Faulty<T2,E> ifOkFlatten(Function<? super T,? extends Faulty<? extends T2,E>> mapper) {
             return switch (this) {
                 case Error<T,E> e -> (Error<T2,E>) e;
-                case Ok(T t) -> (Faulty<T2,E>) mapper.apply(t); // Faulty<T2,E> <- (? extends Faulty<? extends T2,E>) 
+                case Ok(T t) -> (Faulty<T2,E>) mapper.apply(t); // Faulty<T2,E> :> (? extends Faulty<? extends T2,E>) 
             };
         }
 
@@ -269,7 +269,7 @@ enum Data { ;
 
         public default <E2> Faulty<T,E2> ifErrorFlatten(Function<? super E,? extends Faulty<T,? extends E2>> mapper) {
             return switch (this) {
-                case Error(E e) -> (Faulty<T,E2>) mapper.apply(e); // Faulty<T,E2> <- (? extends Faulty<T,? extends E2>) 
+                case Error(E e) -> (Faulty<T,E2>) mapper.apply(e); // Faulty<T,E2> :> (? extends Faulty<T,? extends E2>) 
                 case Ok<T,E> o -> (Faulty<T,E2>) o;
             };
         }
@@ -281,19 +281,27 @@ enum Data { ;
         }
     }
 
-    /** Sum-type value constructors: {@code data Nullable<T> = Has(T) | Empty} */
-    public static sealed interface Nullable<T> extends Iterable<T>, ContainerMonad<T> {
-        public record Has<T>(T e) implements Nullable<T> {};
-        public final class Empty<T> implements Nullable<T> {
-            private static final Empty<?> EMPTY = new Empty<>();
+    /**
+      * Sum-type value constructors: {@code data Nullable<T> = Has(T) | Empty}.<p/>
+      * Provides monad operators for "this value exist" ({@code ifPresent}) & it's natural dual "this value doesn't exist" ({@code ifAbsent}).
+      */
+    public static sealed interface Nullable<T> extends ContainerMonad<T> {
+        public record Has<T>(T value) implements Nullable<T> { @Deprecated public Has { if (value == null) throw new PanicError(); } };
+
+        @SuppressWarnings("rawtypes") // Trust me bro contract: Empty are assignable to any T in Nullable<T>
+        public final class Empty implements Nullable {
+            private static final Empty EMPTY = new Empty();
             private Empty() {}
+            @Override public String toString() { return "Empty"; }
+            @Override public int hashCode() { return 0; }
+            @Override public boolean equals(Object __) { return false; }
         };
 
         // ----- Public API -----
         @Override public default ToNativeType<T> to() {
             return () -> switch (this) {
                 case Has(T e) -> Optional.of(e);
-                case Empty<T> _ -> Optional.empty();
+                case Empty _ -> Optional.empty();
             };
         }
 
@@ -306,16 +314,13 @@ enum Data { ;
         public default <R> Nullable<R> ifHasValueFlatten(Function<? super T,? extends Nullable<? extends R>> mapper) {
             return switch (this) {
                 case Has(T e) -> (Nullable<R>) mapper.apply(e);
-                case Empty<T> _ -> Nullable.empty();
+                case Empty _ -> Nullable.empty();
             };
         }
 
         // This is just functor variant of ifPresentFlatten()
         public default <R> Nullable<R> ifHasValue(Function<? super T,? extends R> mapper) {
-            return switch (this) {
-                case Has(T e) -> (Nullable<R>) mapper.apply(e);
-                case Empty<T> _ -> Nullable.empty();
-            };
+            return this.ifHasValueFlatten(mapper.andThen(Nullable::of));
         }
 
         // Now, to replace Optional#ifPresent(), I propose more natural "query" Nullable.peek() for side-effect & still allow composition
@@ -331,7 +336,7 @@ enum Data { ;
         @Override public default Iterator<T> iterator() {
             return switch (this) {
                 case Has(T e) -> List.of(e).iterator();
-                case Empty<T> _ -> List.<T>of().iterator();
+                case Empty _ -> List.<T>of().iterator();
             };
         }
 
